@@ -2,6 +2,7 @@ from lxml.html import fromstring
 import lxml.etree as etree
 
 
+# TODO: check for author outside the parser when there is no isbn for the book
 def check_for_author(author, orig_authors):
     if not orig_authors:
         return True
@@ -14,7 +15,6 @@ def check_for_author(author, orig_authors):
         return False
     return True
 
-
 def check_for_title(title, orig_title):
     if not orig_title:
         return True
@@ -22,38 +22,33 @@ def check_for_title(title, orig_title):
         return False
     return True
 
-
-def extract_author_and_title(result):
-    author_n_title = result.text
-    author_n_titles = author_n_title.split(':', 1)
-    author = author_n_titles[0].strip(' \r\n\t')
-    title = author_n_titles[1].strip(' \r\n\t')
-    return author, title
-
-
-def parse_search_results(html_content, orig_title=None, orig_authors=None):
-    isbn = None
-
-    root = fromstring(html_content)
-    matches = set()
-    exact_matches = set()
-
-    results = root.xpath('//a[@class="book_selector"]')
-    for result in results:
-        book_urls = result.xpath('@href')
-        matches.update(book_urls)
-        if isbn is None:
-            etree.strip_tags(result, 'strong')
-            author, title = extract_author_and_title(result)
-            if not check_for_title(title, orig_title) or not check_for_author(author, orig_authors):
-                continue
-        exact_matches.update(book_urls)
-
-    return exact_matches or matches
-
-
 def strip_accents(s):
     symbols = (u"öÖüÜóÓőŐúÚéÉáÁűŰíÍ",
                 u"oOuUoOoOuUeEaAuUiI")
     tr = dict( [ (ord(a), ord(b)) for (a, b) in zip(*symbols) ] )
     return s.translate(tr).lower()
+
+
+
+####
+
+def parse_search_results(html_content):
+    root = fromstring(html_content)
+    results = root.xpath('//a[@class="book_selector"]')
+    for result in results:
+        etree.strip_tags(result, 'strong')
+        author = extract_author(result.text)
+        title = extract_title(result.text)
+        for url in result.xpath('@href'):
+            yield (author, title, url)
+
+
+def extract_author(parsed_html):
+    author_and_titles = parsed_html.split(':', 1)
+    return author_and_titles[0].strip(' \r\n\t')
+
+
+def extract_title(parsed_html):
+    author_and_titles = parsed_html.split(':', 1)
+    return author_and_titles[1].strip(' \r\n\t')
+

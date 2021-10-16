@@ -35,12 +35,14 @@ def strip_accents(s):
 def parse_search_results(html_content):
     root = fromstring(html_content)
     results = root.xpath('//a[@class="book_selector"]')
+    matches = set()
     for result in results:
         etree.strip_tags(result, 'strong')
         author = extract_author(result.text)
         title = extract_title(result.text)
         for url in result.xpath('@href'):
-            yield (author, title, url)
+            matches.add((author, title, url))
+    return matches
 
 
 def extract_author(parsed_html):
@@ -51,4 +53,3 @@ def extract_author(parsed_html):
 def extract_title(parsed_html):
     author_and_titles = parsed_html.split(':', 1)
     return author_and_titles[1].strip(' \r\n\t')
-

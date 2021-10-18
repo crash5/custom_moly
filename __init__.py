@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import concurrent.futures
+
 from calibre.ebooks.metadata.book.base import Metadata
 from calibre import browser
 from calibre.ebooks.metadata.sources.base import Source
@@ -7,6 +9,7 @@ from calibre.utils.cleantext import clean_ascii_chars
 
 import calibre_plugins.veluna_metadata.moly_hu.parse_search as parse_search
 import calibre_plugins.veluna_metadata.moly_hu.parser as parse_book
+
 
 __license__   = 'GPL v3'
 __copyright__ = '2011, Kovid Goyal <kovid@kovidgoyal.net>'
@@ -41,14 +44,26 @@ def get_url_content(url):
     return clean_ascii_chars(raw)
 
 
+def get_book_meta(url):
+    book_url = url
+    book_page_source = get_url_content(book_url)
+    book_data = parse_book.HtmlParser().extract_book_details(book_page_source)
+    return Metadata(book_data['title'], book_data['authors'])
+
+
 def get_for_search(base_url, search_param):
     search_url = base_url + search_param
     search_page_source = get_url_content(search_url)
     search_result = parse_search.parse_search_results(search_page_source)
 
-    for result in search_result:
-        book_url = base_url + result[2]
-        book_page_source = get_url_content(book_url)
-        book_data = parse_book.HtmlParser().extract_book_details(book_page_source)
-        yield Metadata(book_data['title'], book_data['authors'])
-
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = {executor.submit(get_book_meta, base_url + result[2]): result for result in search_result}
+        for future in concurrent.futures.as_completed(futures):
+            # result = futures[future]
+            try:
+                book_meta = future.result()
+                yield book_meta
+            except Exception as exc:
+                print(f'generated an exception: {exc}')
+            # else:
+            #     print(f'{id} - {name}: done')
